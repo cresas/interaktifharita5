@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NATO İnteraktif Harita</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body, html { margin: 0; padding: 0; }
+    #map { width: 100%; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Terraformer kütüphaneleri: ArcGIS JSON'u GeoJSON'a dönüştürmek için -->
+  <script src="https://unpkg.com/terraformer@1.0.12/dist/terraformer.min.js"></script>
+  <script src="https://unpkg.com/terraformer-arcgis-parser@1.0.5/dist/terraformer-arcgis-parser.min.js"></script>
+
+  <script>
+    // Haritayı oluşturuyoruz (başlangıç koordinatları ve zoom ayarı)
+    var map = L.map('map').setView([41, 28], 3); // Başlangıç konumu daha geniş bir alan için zoom seviyesi 3
+
+    // Koyu gri altlık haritası: CartoDB Dark Matter kullanılıyor.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap, © CartoDB',
+      maxZoom: 19
+    }).addTo(map);
+
+    // Seçilen ülke için stil (Açık mavi kenar)
+    var selectedStyle = { 
+      color: "#00ffff",      // Açık mavi kenar
+      weight: 2,             // Biraz daha kalın kenar
+      fillColor: "#3388ff",  // Hafif mavi dolgu
+      fillOpacity: 0.3       // Düşük opaklık
+    };
+
+    // Varsayılan stil
+    var defaultStyle = { 
+      color: "#3388ff",      // Hafif mavi kenar
+      weight: 1,             // İnce kenar kalınlığı
+      fillColor: "#3388ff",  // Hafif mavi dolgu
+      fillOpacity: 0.3       // Düşük opaklık
+    };
+
+    var selectedLayer = null;  // Seçilen ülke katmanını takip etmek için
+
+    // GeoJSON dosyasını yükleyip haritaya ekleme
+    fetch('data.geojson')
+      .then(response => response.json())
+      .then(data => {
+        L.geoJSON(data, {
+          style: defaultStyle, // Varsayılan stil
+          onEachFeature: function(feature, layer) {
+            // GeoJSON dosyanızda 'ÜLKE' ve 'Açıklama' gibi özellikleri kullanıyoruz
+            if (feature.properties) {
+              // Ülke adını harita üzerinde sürekli göster
+              layer.bindTooltip(feature.properties.ÜLKE, {
+                permanent: true, // Sürekli gösterim
+                direction: 'center', // Tooltip'i şeklin ortasında göster
+                className: 'tooltip-style'
+                
+              });
+
+              // Tıklama ile pop-up içeriklerini göster
+              layer.bindPopup(`
+                <b>Ülke:</b> ${feature.properties.ÜLKE}<br>
+                <b>Açıklama:</b> ${feature.properties.Açıklama}<br>
+                <b>Giriş Yılı:</b> ${feature.properties.Giriş_Yılı}<br>
+              `);
+
+              // Katmana tıklanabilirlik ekleyelim
+              layer.on('click', function() {
+                // Eğer daha önce seçilen bir katman varsa, onun rengini eski haline döndürelim
+                if (selectedLayer) {
+                  selectedLayer.setStyle(defaultStyle); 
+                }
+
+                // Seçilen katmanın rengini değiştirelim
+                layer.setStyle(selectedStyle);
+
+                // Seçilen katmanı güncelle
+                selectedLayer = layer;
+              });
+            }
+          }
+        }).addTo(map);
+      })
+      .catch(error => console.error("GeoJSON yüklenirken hata oluştu:", error));
+  </script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>NATO İnteraktif Harita</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/turf/turf.min.js"></script>
+  
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    .tooltip-style {
+      /* Çerçeve yok */
+    }
+
+    #bottom-bar {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 5%;
+      background-color: #262626;
+      z-index: 1000;
+    }
+
+    @media (max-width: 600px) {
+      .tooltip-style {
+        font-size: 6pt !important;
+      }
+      #bottom-bar {
+        width: 100%;
+        height: 1.2rem;
+      }
+    }
+
+    @media (min-width: 601px) {
+      #bottom-bar {
+        width: 100%;
+        height: 1.2rem;
+        background-color: #262626;
+      }
+    }
+
+    .leaflet-popup-content {
+      font-size: 16px;
+      font-weight: bold;
+      padding: 12px;
+      max-width: 380px;
+      min-width: 230px;
+      color: white;
+    }
+
+    .leaflet-popup-content-wrapper {
+      border: 3px solid #986165;
+      border-radius: 10px;
+      background-color: #3e3d3d;
+    }
+
+    .leaflet-popup-close-button {
+      font-size: 30px !important;
+      color: #ff0000;
+      font-weight: bold;
+      width: 30px !important;
+      height: 30px !important;
+      line-height: 30px !important;
+    }
+
+    @media (max-width: 600px) {
+      .leaflet-popup-close-button {
+        font-size: 40px !important;
+        color: #ff0000;
+        font-weight: bold;
+        width: 40px !important;
+        height: 40px !important;
+        line-height: 40px !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="bottom-bar"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    var zoomLevel = (window.innerWidth <= 600) ? 4 : 3;
+
+    var map = L.map('map', {
+      noWrap: true, // Haritanın tekrarlanmasını engelle
+      worldCopyJump: true // Sınırları aşan objelerin doğru tarafta gösterilmesini sağla
+    }).setView([41, 28], zoomLevel);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap, © CartoDB',
+      maxZoom: 19,
+      minZoom: 2, // Minimum zoom seviyesini ayarla
+      noWrap: true // Alt katman için de noWrap ayarını ekle
+    }).addTo(map);
+
+    var selectedStyle = { 
+      color: "#dcae0f",
+      weight: 1,
+      fillColor: "#282828",
+      fillOpacity: 0.6
+    };
+
+    var defaultStyle = { 
+      color: "#b47c80",
+      weight: 1,
+      fillColor: "#282828",
+      fillOpacity: 0.6
+    };
+    
+    var selectedLayer = null;
+
+    fetch('data.geojson')
+      .then(response => response.json())
+      .then(data => {
+        var groupedCountries = {};
+
+        data.features.forEach(feature => {
+          var countryName = feature.properties.ÜLKE;
+          if (!groupedCountries[countryName]) {
+            groupedCountries[countryName] = feature;
+          } else {
+            groupedCountries[countryName] = turf.union(groupedCountries[countryName], feature);
+          }
+        });
+
+        var mergedGeoJSON = {
+          type: "FeatureCollection",
+          features: Object.values(groupedCountries)
+        };
+
+        L.geoJSON(mergedGeoJSON, {
+          style: defaultStyle,
+          onEachFeature: function(feature, layer) {
+            if (feature.properties) {
+              var countryName = feature.properties.ÜLKE;
+              var tooltipHtml = '<span>' + countryName + '</span>';
+
+              if (countryName === 'SSCB') {
+                tooltipHtml = '<span style="margin-left: 200px;">SSCB</span>';
+              }
+
+              layer.bindTooltip(tooltipHtml, {
+                permanent: true,
+                direction: 'center',
+                className: 'tooltip-style',
+                opacity: 0.7
+              });
+
+              layer.bindPopup(`
+                <b>Ülke:</b> ${feature.properties.ÜLKE}<br>
+                <b>Açıklama:</b> <span style="color: white;">${feature.properties.AÇIKLAMA}</span><br>
+              `);
+
+              layer.on('click', function() {
+                if (selectedLayer) {
+                  selectedLayer.setStyle(defaultStyle);
+                }
+
+                layer.setStyle(selectedStyle);
+                selectedLayer = layer;
+              });
+            }
+          }
+        }).addTo(map);
+      })
+      .catch(error => console.error("GeoJSON yüklenirken hata oluştu:", error));
+  </script>
+</body>
+</html>

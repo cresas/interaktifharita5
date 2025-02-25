@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NATO İnteraktif Harita</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <style>
+    body, html { margin: 0; padding: 0; }
+    #map { width: 100%; height: 100vh; }
+    /* Standart OSM tile'larını koyu gri göstermek için CSS filtresi */
+    .leaflet-tile {
+      filter: brightness(0.5) contrast(1.2);
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Terraformer kütüphaneleri: ArcGIS JSON'u GeoJSON'a dönüştürmek için -->
+  <script src="https://unpkg.com/terraformer@1.0.12/dist/terraformer.min.js"></script>
+  <script src="https://unpkg.com/terraformer-arcgis-parser@1.0.5/dist/terraformer-arcgis-parser.min.js"></script>
+
+  <script>
+    // Haritayı oluşturuyoruz: Türkiye merkezli (41, 28) ve zoom 5
+    var map = L.map('map').setView([41, 28], 5);
+
+    // Standart OSM tile katmanı ekleniyor
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+
+    /**
+     * Belirtilen URL'deki dosyayı yükler ve haritada gösterir.
+     * @param {string} url - Yüklenecek dosyanın adı (örneğin "data.geojson" veya "data.json")
+     * @param {boolean} isArcGISJSON - Dosyanın ArcGIS JSON formatında olup olmadığını belirtir.
+     */
+    function loadAndDisplayGeoJSON(url, isArcGISJSON) {
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          var geojsonData;
+          if (isArcGISJSON) {
+            // Beklenen ArcGIS JSON yapısı: data.layers[0].features
+            if (data.layers && data.layers.length > 0 && data.layers[0].features) {
+              geojsonData = {
+                type: "FeatureCollection",
+                features: data.layers[0].features.map(function(feature) {
+                  return Terraformer.ArcGIS.parse(feature);
+                })
+              };
+            } else {
+              console.error("Beklenen ArcGIS JSON formatı bulunamadı:", data);
+              return;
+            }
+          } else {
+            // Dosya zaten GeoJSON formatında
+            geojsonData = data;
+          }
+
+          // GeoJSON verisini haritaya ekliyoruz
+          L.geoJSON(geojsonData, {
+            style: function(feature) {
+              return { 
+                color: "#3388ff",      // hafif mavi kenar
+                weight: 1,             // ince kenar kalınlığı
+                fillColor: "#3388ff",
+                fillOpacity: 0.3       // düşük doldurma opaklığı
+              };
+            },
+            onEachFeature: function(feature, layer) {
+              var popupContent = "";
+              if (feature.properties) {
+                // Tüm özellikleri popup olarak listeleyelim
+                for (var key in feature.properties) {
+                  popupContent += "<strong>" + key + ":</strong> " + feature.properties[key] + "<br/>";
+                }
+              } else {
+                popupContent = "Özellik bulunamadı.";
+              }
+              layer.bindPopup(popupContent);
+            }
+          }).addTo(map);
+        })
+        .catch(error => console.error("Veri yüklenemedi (" + url + "):", error));
+    }
+
+    // Klasördeki data.geojson dosyasını (GeoJSON formatında) yükle
+    loadAndDisplayGeoJSON("data.geojson", false);
+    // Klasördeki data.json dosyasını (ArcGIS JSON formatında) yükle
+    loadAndDisplayGeoJSON("data.json", true);
+  </script>
+</body>
+</html>

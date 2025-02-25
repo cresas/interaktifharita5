@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArcGIS JSON Harita</title>
+    <script src="https://js.arcgis.com/4.28/"></script>
+    <style>
+        html, body, #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="viewDiv"></div>
+
+<script>
+    var geojsonData = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [28.9784, 41.0082]
+                },
+                "properties": {
+                    "name": "İstanbul",
+                    "population": 15519267
+                }
+            }
+        ]
+    };
+
+    L.geoJSON(geojsonData).addTo(map);
+</script>
+
+
+    <script>
+        require(["esri/Map", "esri/views/MapView", "esri/layers/GeoJSONLayer"], function(Map, MapView, GeoJSONLayer) {
+            // GeoJSON dosyanın yolu
+            const geojsonLayer = new GeoJSONLayer({
+                url: "data.json" // JSON dosyanı buraya koy
+            });
+
+            const map = new Map({
+                basemap: "topo-vector",
+                layers: [geojsonLayer]
+            });
+
+            const view = new MapView({
+                container: "viewDiv",
+                map: map,
+                center: [28.9784, 41.0082], // İstanbul koordinatları
+                zoom: 5
+            });
+        });
+    </script>
+</body>
+</html>

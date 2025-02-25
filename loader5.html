@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>NATO İnteraktif Harita</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  
+  <style>
+    /* Body ve html boyutlarını tam yapalım */
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+    
+    /* Harita div'inin tüm ekranı kaplaması için */
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    
+    /* Tooltip stilini belirlemek için */
+    .tooltip-style {
+      font-weight: bold;  /* Kalın yazı tipi */
+      font-size: 16px;     /* Yazı boyutunu artırmak */
+      color: white;        /* Yazı rengi beyaz */
+      background: none;    /* Arka planı kaldırdık */
+      padding: 0;          /* İç boşluğu kaldırdık */
+      border: none;        /* Kenarları kaldırdık */
+    }
+
+    /* Pop-up stilini belirlemek için */
+    .leaflet-popup-content {
+      font-size: 18px;      /* Pop-up yazı boyutunu büyüttük */
+      font-weight: bold;    /* Yazıyı kalın yaptık */
+      padding: 20px;        /* Pop-up içindeki boşluğu artırdık */
+      max-width: 400px;     /* Maksimum genişlik belirledik */
+      min-width: 250px;     /* Minimum genişlik belirledik */
+      color: white;         /* Açıklamanın rengini beyaz yapıyoruz */
+    }
+
+    .leaflet-popup-content-wrapper {
+      border: 3px solid #3388ff;  /* Pop-up çerçevesinin rengini belirledik */
+      border-radius: 10px;        /* Kenarları yuvarladık */
+      background-color: #222;     /* Arka planı koyu yaptık */
+    }
+
+    /* Çarpı simgesini büyütüyoruz */
+    .leaflet-popup-close-button {
+      font-size: 55px;  /* Çarpı simgesinin boyutunu artırdık */
+      color: #ff0000;    /* Çarpı simgesine kırmızı renk verdik */
+      font-weight: bold; /* Çarpı simgesini kalın yapalım */
+    }
+
+    /* Harita üzerindeki zoom kontrolünün konumunu merkezi yapalım */
+    .leaflet-control-zoom {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+    }
+
+    /* Tooltip stilini belirlemek için */
+    .tooltip-style {
+      font-weight: 500;  /* PC'de yazıyı normal (ince) yapıyoruz */
+      font-size: 14px;       /* Yazı boyutunu artırmak */
+      color: white;          /* Yazı rengi beyaz */
+      background: none;      /* Arka planı kaldırdık */
+      padding: 0;            /* İç boşluğu kaldırdık */
+      border: none;          /* Kenarları kaldırdık */
+    }
+
+    /* Mobil cihazlar için tooltip ve pop-up boyutunu biraz büyütüyoruz */
+    @media (max-width: 600px) {
+      .tooltip-style {
+        font-size: 18px;  /* Küçük ekranlarda yazı boyutunu büyüt */
+        font-weight: bold; /* Mobilde yazıyı kalın yapıyoruz */
+      }
+    }
+      
+    .leaflet-control-zoom {
+      top: 5px;
+      left: 5px;
+    }
+
+    /* Mobilde harita başlangıç zoom seviyesini daha yakın yapıyoruz */
+    #map {
+      height: 100vh; /* Ekranın tamamını kapsıyor */
+    }
+
+    .leaflet-popup-content {
+      font-size: 16px;  /* Pop-up yazı boyutunu mobilde biraz küçültüyoruz */
+      padding: 15px;    /* Mobilde pop-up içindeki boşluğu küçültüyoruz */
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Terraformer kütüphaneleri: ArcGIS JSON'u GeoJSON'a dönüştürmek için -->
+  <script src="https://unpkg.com/terraformer@1.0.12/dist/terraformer.min.js"></script>
+  <script src="https://unpkg.com/terraformer-arcgis-parser@1.0.5/dist/terraformer-arcgis-parser.min.js"></script>
+
+<script>
+  // Cihaz genişliğine göre zoom seviyesi belirliyoruz
+  var zoomLevel = (window.innerWidth <= 600) ? 4 : 3;  // Eğer mobilse zoom seviyesi 5, değilse 3
+
+  // Haritayı oluşturuyoruz (başlangıç koordinatları ve zoom ayarı)
+  var map = L.map('map').setView([41, 28], zoomLevel); // Başlangıç konumu ve zoom seviyesi
+
+  // Koyu gri altlık haritası: CartoDB Dark Matter kullanılıyor.
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap, © CartoDB',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Seçilen ülke için stil (Açık mavi kenar)
+  var selectedStyle = { 
+    color: "#00ffff",      // Açık mavi kenar
+    weight: 2,             // Biraz daha kalın kenar
+    fillColor: "#3388ff",  // Hafif mavi dolgu
+    fillOpacity: 0.3       // Düşük opaklık
+  };
+
+  // Varsayılan stil
+  var defaultStyle = { 
+    color: "#3388ff",      // Hafif mavi kenar
+    weight: 1,             // İnce kenar kalınlığı
+    fillColor: "#3388ff",  // Hafif mavi dolgu
+    fillOpacity: 0.3       // Düşük opaklık
+  };
+
+  var selectedLayer = null;  // Seçilen ülke katmanını takip etmek için
+
+  // GeoJSON dosyasını yükleyip haritaya ekleme
+  fetch('data.geojson')
+    .then(response => response.json())
+    .then(data => {
+      L.geoJSON(data, {
+        style: defaultStyle, // Varsayılan stil
+        onEachFeature: function(feature, layer) {
+          // GeoJSON dosyanızda 'ÜLKE' ve 'Açıklama' gibi özellikleri kullanıyoruz
+          if (feature.properties) {
+            // Ülke adını harita üzerinde sürekli göster
+            layer.bindTooltip(feature.properties.ÜLKE, {
+              permanent: true, // Sürekli gösterim
+              direction: 'center', // Tooltip'i şeklin ortasında göster
+              className: 'tooltip-style',  // Stil değişikliği burada
+              opacity: 0.7  // Tooltip'in şeffaflık ayarı
+            });
+
+            // Tıklama ile pop-up içeriklerini göster
+            layer.bindPopup(`
+              <b>Ülke:</b> ${feature.properties.ÜLKE}<br>
+              <b>Açıklama:</b> <span style="color: white;">${feature.properties.Açıklama}</span><br> <!-- Açıklama rengi beyaz -->
+              <b>Giriş Yılı:</b> ${feature.properties.Giriş_Yılı}<br>
+            `);
+
+            // Katmana tıklanabilirlik ekleyelim
+            layer.on('click', function() {
+              // Eğer daha önce seçilen bir katman varsa, onun rengini eski haline döndürelim
+              if (selectedLayer) {
+                selectedLayer.setStyle(defaultStyle); 
+              }
+
+              // Seçilen katmanın rengini değiştirelim
+              layer.setStyle(selectedStyle);
+
+              // Seçilen katmanı güncelle
+              selectedLayer = layer;
+            });
+          }
+        }
+      }).addTo(map);
+    })
+    .catch(error => console.error("GeoJSON yüklenirken hata oluştu:", error));
+</script>
+
+</body>
+</html>
